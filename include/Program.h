@@ -15,6 +15,7 @@ class Program {
 
     const int angle_step = 5;
     const double crd_step = 0.1;
+    const double radius = 0.6;
 
     Robot robot;
 

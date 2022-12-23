@@ -151,7 +151,7 @@ void Program::runFKSession() const {
 void Program::printIKHelp() const{
     std::cout << "Input:" << std::endl;
     std::cout << "\tx y z - values in meters to perform calculations;" << std::endl;
-    std::cout << "\ts - to switch off " << crd_step << " m step (super mode);" << std::endl;
+    std::cout << "\ts - to switch off " << crd_step << " m step and limiting sphere (super mode);" << std::endl;
     std::cout << "\th - to repeat this information;" << std::endl;
     std::cout << "\tq - to quit from the super mode (if activated) or to the main menu." << std::endl;
 }
@@ -189,6 +189,11 @@ void Program::runIKSession() const {
                     flag = true;
                     break;
                 }
+            }
+
+            if(!su && (point[0] * point[0] + point[1] * point[1] + point[2] * point[2] > radius * radius)) {
+                std::cout << "The point is out of the " << radius << " m sphere." << std::endl;
+                flag = true;
             }
             if(flag) continue;
 
@@ -291,7 +296,6 @@ void Program::writeFiles() const{
     old_precision = ik_file.precision();
     ik_file << std::showpoint << std::setprecision(3) << std::fixed;
 
-    double radius = 0.6;
     for(double x = -radius; x <= radius; x += crd_step){
         for(double y = -radius; y <= radius; y += crd_step){
             for(double z = -0.1; z <= radius; z += crd_step){ // -0.1 - is just an unreachable z plane
