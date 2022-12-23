@@ -20,6 +20,7 @@ void Program::printTopLevelHelp() const{
 
 
 void Program::runTopLevelSession() const{
+
     printTopLevelHelp();
 
     std::string c;
@@ -51,26 +52,108 @@ void Program::runTopLevelSession() const{
 }
 
 
-void Program::prompt(std::string prefix) const{
-    std::cout << prefix << ">";
+void Program::prompt(const std::string& prefix, const std::string& sign) const{
+    std::cout << prefix << sign;
 }
 
 
-std::string Program::readInput() const {
-    // TODO add simple preprocessing
-    std::string input;
-    std::getline(std::cin, input);
-    return input;
+bool Program::readDataInput(const std::string& str, std::vector<double>& data) const {
+    std::istringstream istr(str);
+
+    for(auto &d: data) {
+        char ch = 0;
+        istr >> ch;
+        if (std::isdigit(ch)) {
+            istr.putback(ch);
+            istr >> d;
+        }
+        else if (ch == '+' || ch == '-'){
+            char ch2 = 0;
+            istr >> ch2;
+            if (std::isdigit(ch2)) {
+                istr.putback(ch2);
+                istr.putback(ch);
+                istr >> d;
+            } else
+                return false;
+        } else
+            return false;
+    }
+    char ch = 0;
+    istr >> ch;
+    if (ch != 0)
+        return false;
+    return true;
+}
+
+
+void Program::printFKHelp() const{
+    std::cout << "Input:" << std::endl;
+    std::cout << "\ttheta1 theta2 theta3 - values in degrees to perform calculations;" << std::endl;
+    std::cout << "\ts - to switch off 5 degrees step;" << std::endl;
+    std::cout << "\th - to repeat this information;" << std::endl;
+    std::cout << "\tq - to quit from the super mode (if activated) or to the main menu." << std::endl;
 }
 
 
 void Program::runFKSession() const {
 
+    printFKHelp();
+
+    bool su = false;
+    std::string c;
+    joints_angles_t joints_angles(3);
+    while(true) {
+        prompt("fk", (su ? "#" : ">"));
+        std::getline(std::cin, c);
+
+        if(c == "")
+        { }
+        else if(c == "s")
+            su = true;
+        else if(c == "h")
+            printFKHelp();
+        else if(c == "q") {
+            if(su)
+                su = false;
+            else
+                return;
+        }
+        else if(readDataInput(c, joints_angles)){
+
+            bool flag = false;
+            for(auto &ja: joints_angles) {
+                if (!su && (std::abs(ja / angle_step - round(ja / angle_step)) > 0.0)) {
+                    std::cout << "Incorrect input. Each value have to be equal to " << angle_step
+                              << "*d, where d is an integer" << std::endl;
+                    flag = true;
+                    break;
+                }
+                ja *= M_PI / 180;
+            }
+            if(flag) continue;
+
+            try {
+                position_t point_C = robot.solveFK(joints_angles);
+                std::cout << "Coordinates of point C: " << point_C.x << " " << point_C.y << " " << point_C.z << " " << std::endl;
+            }
+            catch(Robot::JointAngleOutOfLimits){
+                std::cout << "Incorrect input. Angle values are out of limits." << std::endl;
+                continue;
+            }
+        }
+        else
+            std::cout << "Incorrect input. Please repeat." << std::endl;
+    }
 }
 
 
 void Program::runIKSession() const {
-
+    double k;
+    std::string r;
+    std::cin >> k;
+    std::cin >> r;
+    std::cout << k << std::endl << r;
 }
 
 
@@ -122,7 +205,6 @@ void Program::writeFiles() const{
             << "th3 " << std::setw(7) << "Xc " << std::setw(7) << "Yc "
             << std::setw(7) << "Zc " << std::endl;
 
-    int angle_step = 5;
     for(int theta_1 = round(robot.joints_limits[0].min * 180 / M_PI);
         theta_1 <= round(robot.joints_limits[0].max * 180 / M_PI); theta_1 += angle_step) {
 
@@ -150,7 +232,6 @@ void Program::writeFiles() const{
     ik_file << std::showpoint << std::setprecision(3) << std::fixed;
 
     double radius = 0.6;
-    double crd_step = 0.1;
     for(double x = -radius; x <= radius; x += crd_step){
         for(double y = -radius; y <= radius; y += crd_step){
             for(double z = -0.1; z <= radius; z += crd_step){ // -0.1 - is just an unreachable z plane
