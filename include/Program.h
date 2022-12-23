@@ -6,13 +6,18 @@
 #include "Robot.h"
 
 class Program {
-    std::string readInput();
-    void writeFiles();
-    void prompt();
+    std::string readInput() const;
+    void writeFiles() const;
+    void prompt(std::string = "") const;
+    void printQuaternion() const;
+    void runIKSession() const;
+    void runFKSession() const;
+    void printTopLevelHelp() const;
+    void runTopLevelSession() const;
 
 public:
 
-    void run();
+    void run() const;
 };
 
 
