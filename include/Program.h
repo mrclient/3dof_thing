@@ -1,9 +1,10 @@
 #ifndef INC_3DOF_THING_PROGRAM_H
 #define INC_3DOF_THING_PROGRAM_H
 
+#include "Robot.h"
 #include <string>
 #include <iostream>
-#include "Robot.h"
+#include <cmath>
 
 class Program {
     std::string readInput() const;
