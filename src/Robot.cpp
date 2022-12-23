@@ -7,7 +7,7 @@ using std::abs;
 using std::atan2;
 
 
-angle_t normalizeAngle(angle_t angle){
+double normalizeAngle(double angle){
     while(angle > M_PI)
         angle -= 2 * M_PI;
     while(angle < -M_PI)
@@ -34,7 +34,7 @@ double findAC(const position_t& c, double d1){
 
 
 Robot::Robot() :
-    rw(a2 * a2 + a3 * a3 - 2 * a2 * a3 * cos(130 * M_PI / 180)),
+    rw(sqrt(a2 * a2 + a3 * a3 - 2 * a2 * a3 * cos(130 * M_PI / 180))),
     joints_limits(N)
 {
     joints_limits[0].min = -M_PI;
@@ -47,8 +47,9 @@ Robot::Robot() :
 
 
 bool Robot::jointsAnglesOutOfLimits(const joints_angles_t& joints_angles) const{
-    // Be carefull: the function doesn't find any other problem with its input argument
+    // Be carefull: the function doesn't find any other problem with its input argument such as correct order of angles;
     for(int i = 0; i < N; i++){
+        // explicit/"precise" comparison of doubles are vulnerable; maybe introduction of tolerance will be required
         if(joints_angles[i] > joints_limits[i].max || joints_angles[i] < joints_limits[i].min)
             return true;
     }
@@ -106,9 +107,9 @@ std::vector<joints_angles_t> Robot::solveIK(const position_t& tool_position) con
         throw UnreachablePosition();
 
     std::vector<joints_angles_t> joints_angles_sets(num_of_sets);
-    for(auto &x: joints_angles_sets) {
-        x.resize(N);
-        x[0] = 0.0;
+    for(auto &jas: joints_angles_sets) {
+        jas.resize(N);
+        jas[0] = 0.0;
     }
 
     if (tool_position.x != 0.0 || tool_position.y != 0.0){ // comparison of doubles with zeros may be vulnerable
@@ -116,7 +117,7 @@ std::vector<joints_angles_t> Robot::solveIK(const position_t& tool_position) con
         joints_angles_sets[0][0] = joints_angles_sets[1][0] = normalizeAngle(psi + M_PI);
         joints_angles_sets[2][0] = joints_angles_sets[3][0] = psi;
     }
-    // else isn't required for the robot to mark singular solution for theta_1. It can be checked by comparing
+    // else isn't required for the robot to mark singular solution for theta_1. It can be checked by investigating
     // its different values were found
 
     double AC = findAC(tool_position, d1);
@@ -130,8 +131,19 @@ std::vector<joints_angles_t> Robot::solveIK(const position_t& tool_position) con
     joints_angles_sets[2][1] = -(joints_angles_sets[0][1] = normalizeAngle(M_PI / 2 - phi - beta));
     joints_angles_sets[3][1] = -(joints_angles_sets[1][1] = normalizeAngle(M_PI / 2 - phi + beta));
 
-    std::remove_if(joints_angles_sets.begin(), joints_angles_sets.end(),
-                   [this](const joints_angles_t& joints_angles){return jointsAnglesOutOfLimits(joints_angles);});
+    auto it = std::remove_if(joints_angles_sets.begin(), joints_angles_sets.end(),
+                   [this](const joints_angles_t& joints_angles){return this->jointsAnglesOutOfLimits(joints_angles);});
+    joints_angles_sets.erase(it, joints_angles_sets.end());
 
     return joints_angles_sets;
+}
+
+
+bool Robot::checkForSingularity(const std::vector<joints_angles_t>& joints_angles_sets) const {
+    const double tol = 10e-5;
+    for(auto &jas: joints_angles_sets) {
+        if(abs(jas[1]) < tol && abs(jas[2]) < tol)
+            return true;
+    }
+    return false;
 }

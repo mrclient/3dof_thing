@@ -4,13 +4,19 @@
 #include "Robot.h"
 #include <string>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 #include <cmath>
 
+
 class Program {
+
+    Robot robot;
+
     std::string readInput() const;
     void writeFiles() const;
     void prompt(std::string = "") const;
-    void printQuaternion() const;
+    void printQuaternion(std::ostream& = std::cout) const;
     void runIKSession() const;
     void runFKSession() const;
     void printTopLevelHelp() const;

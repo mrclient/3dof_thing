@@ -20,11 +20,13 @@ void Program::printTopLevelHelp() const{
 
 
 void Program::runTopLevelSession() const{
-    std::string c;
     printTopLevelHelp();
+
+    std::string c;
     while(true) {
         prompt();
-        c = readInput();
+        std::getline(std::cin, c);
+
         if(c == "")
             { }
         else if(c == "w")
@@ -72,7 +74,7 @@ void Program::runIKSession() const {
 }
 
 
-void Program::printQuaternion() const {
+void Program::printQuaternion(std::ostream& out_stream) const {
     using std::sin;
     using std::cos;
     using std::acos;
@@ -98,12 +100,103 @@ void Program::printQuaternion() const {
     double j = 0.5 * sin(theta / 2) / sin(theta) * (r13 - r31);
     double k = 0.5 * sin(theta / 2) / sin(theta) * (r21 - r12);
 
-    std::cout << "The quaternion describing the rotation of the detail in a format of [w i j k]:" << std::endl;
-    printf("[%4.3f %4.3f %4.3f %4.3f]\n", w, i, j, k);
+    out_stream << "The quaternion describing the rotation of the detail in a format of [w i j k]:" << std::endl;
+    auto old_flags = out_stream.flags();
+    auto old_precision = out_stream.precision();
+    out_stream << "[" << std::showpoint << std::setprecision(3) << std::setw(5) << w << " "
+               << std::setw(5) << i << " " << std::setw(5) << j << " "
+               << std::setw(5) << k << "]" << std::endl;
+    out_stream << std::setprecision(old_precision);
+    out_stream.flags(old_flags);
 }
-
 
 
 void Program::writeFiles() const{
 
+    std::ofstream fk_file("task1.txt");
+    auto old_flags = fk_file.flags();
+    auto old_precision = fk_file.precision();
+    fk_file << std::showpoint << std::setprecision(3) << std::fixed;
+
+    fk_file << std::setw(5) << "th1 " << std::setw(5) << "th2 " << std::setw(5)
+            << "th3 " << std::setw(7) << "Xc " << std::setw(7) << "Yc "
+            << std::setw(7) << "Zc " << std::endl;
+
+    int angle_step = 5;
+    for(int theta_1 = round(robot.joints_limits[0].min * 180 / M_PI);
+        theta_1 <= round(robot.joints_limits[0].max * 180 / M_PI); theta_1 += angle_step) {
+
+        for (int theta_2 = round(robot.joints_limits[1].min * 180 / M_PI);
+             theta_2 <= round(robot.joints_limits[1].max * 180 / M_PI); theta_2 += angle_step) {
+
+            for (int theta_3 = round(robot.joints_limits[2].min * 180 / M_PI);
+                 theta_3 <= round(robot.joints_limits[2].max * 180 / M_PI); theta_3 += angle_step) {
+
+                joints_angles_t joints_angles = {theta_1 * M_PI / 180, theta_2 * M_PI / 180, theta_3 * M_PI / 180};
+                position_t point_C = robot.solveFK(joints_angles);
+                fk_file << std::setw(4) << theta_1 << " " << std::setw(4) << theta_2 << " "
+                        << std::setw(4) << theta_3 << " " << std::setw(6) << point_C.x << " "
+                        << std::setw(6) << point_C.y << " " << std::setw(6) << point_C.z << " " << std::endl;
+            }
+        }
+    }
+    fk_file << std::setprecision(old_precision);
+    fk_file.flags(old_flags);
+    fk_file.close();
+
+    std::ofstream ik_file("task2.txt");
+    old_flags = ik_file.flags();
+    old_precision = ik_file.precision();
+    ik_file << std::showpoint << std::setprecision(3) << std::fixed;
+
+    double radius = 0.6;
+    double crd_step = 0.1;
+    for(double x = -radius; x <= radius; x += crd_step){
+        for(double y = -radius; y <= radius; y += crd_step){
+            for(double z = -0.1; z <= radius; z += crd_step){ // -0.1 - is just an unreachable z plane
+
+                if(x * x + y * y + z * z > radius * radius) {
+//                    ik_file << "Point [" << std::setprecision(1) << std::setw(4) << x << " " << std::setw(4)
+//                            << y << " " << std::setw(4) << z << "] m is out of the 0.6m sphere!" << std::endl;
+                    continue;
+                }
+
+                try {
+                    std::vector<joints_angles_t> joints_angles_sets = robot.solveIK(Point{x, y, z});
+
+                    ik_file << "Point [" << std::setprecision(1) << std::setw(4) << x << " " << std::setw(4)
+                            << y << " " << std::setw(4) << z << "] m is achievable with {t1, th2, th3} degrees: ";
+                    if(!robot.checkForSingularity(joints_angles_sets)) {
+                        for (auto &jas: joints_angles_sets) {
+                            ik_file << std::setprecision(3) << "{" << std::setw(4) << jas[0] * 180 / M_PI << " "
+                                    << std::setw(4) << jas[1] * 180 / M_PI << " "
+                                    << std::setw(4) << jas[2] * 180 / M_PI << "} ";
+                        }
+                    }
+                    else {
+                        ik_file << std::setprecision(3) << "{" << std::setw(4) << "any" << " "
+                                << std::setw(4) << 0.0 << " " << std::setw(4) << 0.0 << "} "
+                                << " - position is singular or close to be so!";
+
+                    }
+                    ik_file << std::endl;
+                }
+                catch(Robot::UnreachablePosition) {
+                    ik_file << std::setprecision(1) << "Point [" << std::setw(4) << x << " " << std::setw(4)
+                            << y << " " << std::setw(4) << z << "] m is unreachable!" << std::endl;
+                }
+                catch(...){
+                    ik_file << std::setprecision(1) << "Point [" << std::setw(4) << x << " " << std::setw(4)
+                            << y << " " << std::setw(4) << z << "] m AAAAAAAAAAAAAAAAAAAAA!" << std::endl;
+                }
+            }
+        }
+    }
+
+    ik_file << std::setprecision(old_precision);
+    ik_file.flags(old_flags);
+    ik_file.close();
+
+    std::ofstream qt_file("task3.txt");
+    printQuaternion(qt_file);
 }
