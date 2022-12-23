@@ -90,7 +90,7 @@ bool Program::readDataInput(const std::string& str, std::vector<double>& data) c
 void Program::printFKHelp() const{
     std::cout << "Input:" << std::endl;
     std::cout << "\ttheta1 theta2 theta3 - values in degrees to perform calculations;" << std::endl;
-    std::cout << "\ts - to switch off 5 degrees step;" << std::endl;
+    std::cout << "\ts - to switch off " << angle_step << " degrees step (super mode);" << std::endl;
     std::cout << "\th - to repeat this information;" << std::endl;
     std::cout << "\tq - to quit from the super mode (if activated) or to the main menu." << std::endl;
 }
@@ -123,7 +123,7 @@ void Program::runFKSession() const {
 
             bool flag = false;
             for(auto &ja: joints_angles) {
-                if (!su && (std::abs(ja / angle_step - round(ja / angle_step)) > 0.0)) {
+                if (!su && (std::abs(ja / angle_step - std::round(ja / angle_step)) > 1e-5)) { // 1e-5-"tolerance"
                     std::cout << "Incorrect input. Each value have to be equal to " << angle_step
                               << "*d, where d is an integer" << std::endl;
                     flag = true;
@@ -135,10 +135,10 @@ void Program::runFKSession() const {
 
             try {
                 position_t point_C = robot.solveFK(joints_angles);
-                std::cout << "Coordinates of point C: " << point_C.x << " " << point_C.y << " " << point_C.z << " " << std::endl;
+                std::cout << "Coordinates of point C in meters: " << point_C.x << " " << point_C.y << " " << point_C.z << " " << std::endl;
             }
             catch(Robot::JointAngleOutOfLimits){
-                std::cout << "Incorrect input. Angle values are out of limits." << std::endl;
+                std::cout << "Incorrect input. Angles values are out of limits." << std::endl;
                 continue;
             }
         }
@@ -148,12 +148,72 @@ void Program::runFKSession() const {
 }
 
 
+void Program::printIKHelp() const{
+    std::cout << "Input:" << std::endl;
+    std::cout << "\tx y z - values in meters to perform calculations;" << std::endl;
+    std::cout << "\ts - to switch off " << crd_step << " m step (super mode);" << std::endl;
+    std::cout << "\th - to repeat this information;" << std::endl;
+    std::cout << "\tq - to quit from the super mode (if activated) or to the main menu." << std::endl;
+}
+
+
 void Program::runIKSession() const {
-    double k;
-    std::string r;
-    std::cin >> k;
-    std::cin >> r;
-    std::cout << k << std::endl << r;
+    printIKHelp();
+
+    bool su = false;
+    std::string c;
+    std::vector<double> point(3);
+    while(true) {
+        prompt("ik", (su ? "#" : ">"));
+        std::getline(std::cin, c);
+
+        if(c == "")
+        { }
+        else if(c == "s")
+            su = true;
+        else if(c == "h")
+            printIKHelp();
+        else if(c == "q") {
+            if(su)
+                su = false;
+            else
+                return;
+        }
+        else if(readDataInput(c, point)){
+
+            bool flag = false;
+            for(auto &p: point) {
+                if (!su && (std::abs(p / crd_step - std::round(p / crd_step)) > 1e-5)) { // 1e-5 - "tolerance"
+                    std::cout << "Incorrect input. Each value have to be equal to " << crd_step
+                              << "*d, where d is an integer" << std::endl;
+                    flag = true;
+                    break;
+                }
+            }
+            if(flag) continue;
+
+            try {
+                std::vector<joints_angles_t> joints_angles_sets = robot.solveIK(Point{point[0], point[1], point[2]});
+                std::cout << "Solutions in degrees are ";
+                if(!robot.checkForSingularity(joints_angles_sets)) {
+                    for (auto &jas: joints_angles_sets) {
+                        std::cout << "{" << jas[0] * 180 / M_PI << " " << jas[1] * 180 / M_PI << " "
+                                  << jas[2] * 180 / M_PI << "} ";
+                    }
+                }
+                else {
+                    std::cout << "{" << "any" << " " << 0.0 << " " << 0.0 << "}"
+                            << " - position is singular or close to be so!";
+                }
+                std::cout << std::endl;
+            }
+            catch(Robot::UnreachablePosition) {
+                std::cout <<  "The point is unreachable!" << std::endl;
+            }
+        }
+        else
+            std::cout << "Incorrect input. Please repeat." << std::endl;
+    }
 }
 
 
@@ -265,10 +325,6 @@ void Program::writeFiles() const{
                 catch(Robot::UnreachablePosition) {
                     ik_file << std::setprecision(1) << "Point [" << std::setw(4) << x << " " << std::setw(4)
                             << y << " " << std::setw(4) << z << "] m is unreachable!" << std::endl;
-                }
-                catch(...){
-                    ik_file << std::setprecision(1) << "Point [" << std::setw(4) << x << " " << std::setw(4)
-                            << y << " " << std::setw(4) << z << "] m AAAAAAAAAAAAAAAAAAAAA!" << std::endl;
                 }
             }
         }
