@@ -192,7 +192,7 @@ void Program::runIKSession() const {
             }
 
             if(!su && (point[0] * point[0] + point[1] * point[1] + point[2] * point[2] > radius * radius)) {
-                std::cout << "The point is out of the " << radius << " m sphere." << std::endl;
+                std::cout << "Incorrect input. The point is out of the " << radius << " m sphere." << std::endl;
                 flag = true;
             }
             if(flag) continue;
@@ -340,4 +340,6 @@ void Program::writeFiles() const{
 
     std::ofstream qt_file("task3.txt");
     printQuaternion(qt_file);
+
+    std::cout << "Check the directory with the executable to find files \"task?.txt\"" << std::endl;
 }
